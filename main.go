@@ -36,6 +36,36 @@ func NewApp() *cli.App {
 			Usage: "specify an environment variable containing the database URL",
 		},
 		cli.StringFlag{
+			Name:  "hostvar",
+			Value: "DATABASE_HOST",
+			Usage: "specify the environment variable used to lookup the host",
+		},
+		cli.StringFlag{
+			Name:  "uservar",
+			Value: "DATABASE_USER",
+			Usage: "specify the environment variable used to lookup the user",
+		},
+		cli.StringFlag{
+			Name:  "passvar",
+			Value: "DATABASE_PASSWORD",
+			Usage: "specify the environment variable used to lookup the password",
+		},
+		cli.StringFlag{
+			Name:  "drivervar",
+			Value: "DATABASE_DRIVER",
+			Usage: "specify the environment variable used to lookup the driver",
+		},
+		cli.StringFlag{
+			Name:  "dbnamevar",
+			Value: "DATABASE_NAME",
+			Usage: "specify the environment variable used to lookup the database name",
+		},
+		cli.StringFlag{
+			Name:  "dbportvar",
+			Value: "DATABASE_PORT",
+			Usage: "specify the environment variable used to lookup the database port",
+		},
+		cli.StringFlag{
 			Name:  "migrations-dir, d",
 			Value: dbmate.DefaultMigrationsDir,
 			Usage: "specify the directory containing migration files",
@@ -148,5 +178,42 @@ func getDatabaseURL(c *cli.Context) (u *url.URL, err error) {
 	env := c.GlobalString("env")
 	value := os.Getenv(env)
 
+	if value == "" {
+		return constructDatabaseUrl(c)
+	}
+
 	return url.Parse(value)
+}
+
+func constructDatabaseUrl(c *cli.Context) (*url.URL, error) {
+	portvar := c.GlobalString("portvar")
+	namevar := c.GlobalString("dbnamevar")
+	drivervar := c.GlobalString("drivervar")
+	passvar := c.GlobalString("passvar")
+	uservar := c.GlobalString("uservar")
+	hostvar := c.GlobalString("hostvar")
+
+	port := readVarVal(portvar)
+	if port == "" {
+		port = "5432"
+	}
+
+	driver := readVarVal(drivervar)
+	if driver == "" {
+		driver = "postgres"
+	}
+
+	dsnUrl := fmt.Sprintf("%s://%s:%s@%s:%s/%s?sslmode=disable",
+		driver,
+		readVarVal(uservar),
+		readVarVal(passvar),
+		readVarVal(hostvar),
+		port,
+		readVarVal(namevar))
+
+	return url.Parse(dsnUrl)
+}
+
+func readVarVal(v string) string {
+	return os.Getenv(os.Getenv(v))
 }
