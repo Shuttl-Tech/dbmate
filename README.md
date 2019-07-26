@@ -29,7 +29,6 @@ For a comparison between dbmate and other popular database schema migration tool
 Install using Homebrew:
 
 ```sh
-$ brew tap amacneil/dbmate
 $ brew install dbmate
 ```
 
@@ -38,7 +37,7 @@ $ brew install dbmate
 Download the binary directly:
 
 ```sh
-$ sudo curl -fsSL -o /usr/local/bin/dbmate https://github.com/amacneil/dbmate/releases/download/v1.4.1/dbmate-linux-amd64
+$ sudo curl -fsSL -o /usr/local/bin/dbmate https://github.com/amacneil/dbmate/releases/download/v1.6.0/dbmate-linux-amd64
 $ sudo chmod +x /usr/local/bin/dbmate
 ```
 
@@ -56,7 +55,7 @@ To use dbmate on Heroku, the easiest method is to store the linux binary in your
 
 ```sh
 $ mkdir -p bin
-$ curl -fsSL -o bin/dbmate-heroku https://github.com/amacneil/dbmate/releases/download/v1.4.1/dbmate-linux-amd64
+$ curl -fsSL -o bin/dbmate-heroku https://github.com/amacneil/dbmate/releases/download/v1.6.0/dbmate-linux-amd64
 $ chmod +x bin/dbmate-heroku
 $ git add bin/dbmate-heroku
 $ git commit -m "Add dbmate binary"
@@ -204,6 +203,23 @@ $ dbmate rollback
 Rolling back: 20151127184807_create_users_table.sql
 Writing: ./db/schema.sql
 ```
+
+### Migration Options
+
+dbmate supports options passed to a migration block in the form of `key:value` pairs. List of supported options:
+
+* `transaction`
+
+#### transaction
+
+`transaction` is useful if you need to run some SQL which cannot be executed from within a transaction. For example, in Postgres, you would need to disable transactions for migrations that alter an enum type to add a value:
+
+```sql
+-- migrate:up transaction:false
+ALTER TYPE colors ADD VALUE 'orange' AFTER 'red';
+```
+
+`transaction` will default to `true` if your database supports it.
 
 ### Schema File
 
