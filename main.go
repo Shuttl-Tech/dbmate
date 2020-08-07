@@ -1,10 +1,13 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
+	"net"
 	"net/url"
 	"os"
+	"strings"
 
 	"github.com/amacneil/dbmate/pkg/dbmate"
 	"github.com/joho/godotenv"
@@ -203,11 +206,20 @@ func constructDatabaseUrl(c *cli.Context) (*url.URL, error) {
 		driver = "postgres"
 	}
 
+	var err error
+	hostname := readVarVal(hostvar)
+	if strings.HasSuffix(hostname, ".consul") {
+		hostname, port, err = resolveHostPort(hostname)
+		if err != nil {
+			return nil, fmt.Errorf("failed to resolve DNS name %q. %s", hostname, err)
+		}
+	}
+
 	dsnUrl := fmt.Sprintf("%s://%s:%s@%s:%s/%s?sslmode=disable",
 		driver,
 		readVarVal(uservar),
 		readVarVal(passvar),
-		readVarVal(hostvar),
+		hostname,
 		port,
 		readVarVal(namevar))
 
@@ -216,4 +228,32 @@ func constructDatabaseUrl(c *cli.Context) (*url.URL, error) {
 
 func readVarVal(v string) string {
 	return os.Getenv(os.Getenv(v))
+}
+
+func resolveHostPort(hostname string) (string, string, error) {
+	resolver := net.Resolver{
+		Dial: consulDnsDialer,
+	}
+
+	_, addrs, err := resolver.LookupSRV(context.Background(), "", "", hostname)
+	if err != nil {
+		return "", "", err
+	}
+
+	return addrs[0].Target, fmt.Sprintf("%d", addrs[0].Port), nil
+}
+
+func consulDnsDialer(ctx context.Context, network, address string) (net.Conn, error) {
+	dnsServer := os.Getenv("NET_BRIDGE_GW_IP")
+	if dnsServer == "" {
+		addr := strings.Split(os.Getenv("CONSUL_HTTP_ADDR"), ":")
+		dnsServer = addr[0]
+	}
+
+	if dnsServer == "" {
+		dnsServer = "127.0.0.1"
+	}
+
+	dialer := net.Dialer{}
+	return dialer.DialContext(ctx, "udp", fmt.Sprintf("%s:%d", dnsServer, 53))
 }

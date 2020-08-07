@@ -1,5 +1,5 @@
 DC := docker-compose
-BUILD_FLAGS := -ldflags '-s'
+BUILD_FLAGS := -ldflags '-s -w -extldflags "-static"'
 
 .PHONY: all
 all: test lint build

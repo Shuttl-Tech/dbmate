@@ -1,20 +1,11 @@
-# build image
-FROM golang:1.12 as build
+FROM golang:1.14 as build
 
-# required to force cgo (for sqlite driver) with cross compile
-ENV CGO_ENABLED 1
+ENV CGO_ENABLED 0
 
 # install database clients
 RUN apt-get update \
-	&& apt-get install -y --no-install-recommends \
-		mysql-client \
-		postgresql-client \
-		sqlite3 \
-	&& rm -rf /var/lib/apt/lists/*
-
-# development dependencies
-RUN curl -fsSL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh \
-	| sh -s v1.16.0
+	&& apt-get install -y --no-install-recommends default-mysql-client postgresql-client \
+    && rm -rf /var/lib/apt/lists/*
 
 # copy source files
 COPY . /src
