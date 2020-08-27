@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/amacneil/dbmate/pkg/dbmate"
 	"github.com/joho/godotenv"
@@ -231,19 +232,6 @@ func readVarVal(v string) string {
 }
 
 func resolveHostPort(hostname string) (string, string, error) {
-	resolver := net.Resolver{
-		Dial: consulDnsDialer,
-	}
-
-	_, addrs, err := resolver.LookupSRV(context.Background(), "", "", hostname)
-	if err != nil {
-		return "", "", err
-	}
-
-	return addrs[0].Target, fmt.Sprintf("%d", addrs[0].Port), nil
-}
-
-func consulDnsDialer(ctx context.Context, network, address string) (net.Conn, error) {
 	dnsServer := os.Getenv("NET_BRIDGE_GW_IP")
 	if dnsServer == "" {
 		addr := strings.Split(os.Getenv("CONSUL_HTTP_ADDR"), ":")
@@ -254,6 +242,37 @@ func consulDnsDialer(ctx context.Context, network, address string) (net.Conn, er
 		dnsServer = "127.0.0.1"
 	}
 
-	dialer := net.Dialer{}
-	return dialer.DialContext(ctx, "udp", fmt.Sprintf("%s:%d", dnsServer, 53))
+	log.Printf("resolving address %s using DNS server at %s", hostname, dnsServer)
+
+	resolver := net.Resolver{
+		Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
+			dialer := net.Dialer{}
+			return dialer.DialContext(ctx, "udp", fmt.Sprintf("%s:%d", dnsServer, 53))
+		},
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+	defer cancel()
+
+	_, addrs, err := resolver.LookupSRV(ctx, "", "", hostname)
+	if err != nil {
+		return "", "", err
+	}
+
+	host, port := addrs[0].Target, fmt.Sprintf("%d", addrs[0].Port)
+	if strings.Contains(host, ".consul") {
+		rctx, rcancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+		defer rcancel()
+
+		ipAddr, err := resolver.LookupIPAddr(rctx, host)
+		if err != nil {
+			return "", "", fmt.Errorf("failed to resolve IP address for %s", host)
+		}
+
+		host = ipAddr[0].IP.String()
+	}
+
+	log.Printf("%s resolved to %s on port %s", hostname, host, port)
+
+	return host, port, nil
 }
